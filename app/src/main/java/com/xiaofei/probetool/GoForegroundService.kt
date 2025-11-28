@@ -3,76 +3,108 @@ package com.xiaofei.probetool
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.xiaofei.probetool.lib.probetool.Probetool
 import java.io.File
 import java.io.FileOutputStream
 
 class GoForegroundService : Service() {
 
     companion object {
-        init {
-            System.loadLibrary("gojni")
-        }
-
-        @JvmStatic
-        external fun Start(ftpDir: String, logDir: String, staticDir: String)
-        @JvmStatic
-        external fun Stop()
+        const val ACTION_STOP = "ACTION_STOP"
+        var isRunning = false
+        const val ACTION_SERVICE_STATE_CHANGE = "com.xiaofei.probetool.SERVICE_STATE_CHANGE"
+        const val EXTRA_IS_RUNNING = "IS_RUNNING"
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        // Initialize and start the Go backend here
+    private fun sendStateUpdateBroadcast(isRunning: Boolean) {
+        val intent = Intent(ACTION_SERVICE_STATE_CHANGE).apply {
+            putExtra(EXTRA_IS_RUNNING, isRunning)
+        }
+        sendBroadcast(intent)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        createNotificationChannel()
-
-        val notification: Notification = NotificationCompat.Builder(this, "GoServiceChannel")
-            .setContentTitle("Probe Tool Service")
-            .setContentText("Go backend is running...")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .build()
-
-        startForeground(1, notification)
-
-        val downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-        val logDir = File(downloadDir, "logs")
-        if (!logDir.exists()) {
-            logDir.mkdirs()
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
         }
 
-        val staticDir = File(filesDir, "static")
-        if (!staticDir.exists()) {
-            staticDir.mkdirs()
-            assets.list("static")?.forEach { fileName ->
-                assets.open("static/$fileName").use { input ->
-                    val outputFile = File(staticDir, fileName)
-                    FileOutputStream(outputFile).use { output ->
-                        input.copyTo(output)
+        if (!isRunning) {
+            isRunning = true
+            sendStateUpdateBroadcast(true)
+            // ... existing start logic ...
+            createNotificationChannel()
+
+            val notificationIntent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+
+            val stopIntent = Intent(this, GoForegroundService::class.java).apply { action = ACTION_STOP }
+            val stopPendingIntent =
+                PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+
+            val notification: Notification = NotificationCompat.Builder(this, "GoServiceChannel")
+                .setContentTitle("Probe Tool Service")
+                .setContentText("Go backend is running...")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentIntent(pendingIntent)
+                .addAction(R.mipmap.ic_launcher_round, "停止", stopPendingIntent)
+                .build()
+
+            startForeground(1, notification)
+
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val logDir = File(downloadDir, "logs")
+            if (!logDir.exists()) {
+                logDir.mkdirs()
+            }
+
+            val staticDir = File(filesDir, "static")
+            if (!staticDir.exists()) {
+                staticDir.mkdirs()
+                try {
+                    assets.list("static")?.forEach { fileName ->
+                        assets.open("static/$fileName").use { input ->
+                            val outputFile = File(staticDir, fileName)
+                            FileOutputStream(outputFile).use { output ->
+                                input.copyTo(output)
+                            }
+                        }
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
+
+            Thread {
+                try {
+                    Probetool.start(downloadDir!!.absolutePath, logDir.absolutePath, staticDir.absolutePath)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }.start()
         }
-
-        // This is where you would call your Go function, passing the paths
-        Thread {
-            Start(downloadDir!!.absolutePath, logDir.absolutePath, staticDir.absolutePath)
-        }.start()
-
 
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Stop the Go backend here
-        Stop()
+        if (isRunning) {
+            isRunning = false
+            sendStateUpdateBroadcast(false)
+            try {
+                Probetool.stop()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {

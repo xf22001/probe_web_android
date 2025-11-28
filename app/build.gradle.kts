@@ -41,13 +41,6 @@ android {
     }
 }
 
-tasks.register<Copy>("copyStaticAssets") {
-    from("../lib/static")
-    into("src/main/assets/static")
-}
-
-tasks.getByName("preBuild").dependsOn( "copyStaticAssets")
-
 dependencies {
     implementation(files("libs/main.aar"))
     implementation(libs.androidx.core.ktx)
