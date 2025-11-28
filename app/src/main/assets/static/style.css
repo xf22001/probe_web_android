@@ -1,0 +1,267 @@
+/* static/style.css - Mobile Fixed Layout Version */
+
+/* === 全局复位 === */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; 
+    background-color: #f4f4f4;
+    color: #333;
+    /* 使用 dvh 适配动态地址栏，回退使用 vh */
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden; /* 防止整个页面产生滚动条 */
+    display: flex;
+    flex-direction: column;
+}
+
+/* === 主容器 === */
+.main-layout-wrapper {
+    display: flex;
+    flex-direction: column; 
+    width: 100%; 
+    height: 100%; 
+    background-color: #fff;
+    overflow: hidden;
+}
+
+/* === 顶部 Header === */
+header {
+    height: 50px;
+    padding: 0 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #0056b3;
+}
+
+/* === 中间区域 (侧边栏 + 日志) === */
+.content-area {
+    display: flex; 
+    flex: 1; /* 占据剩余高度 */
+    overflow: hidden; /* 内部滚动 */
+    position: relative;
+}
+
+/* PC端布局 */
+.side-panel {
+    width: 300px; 
+    padding: 15px;
+    border-right: 1px solid #eee;
+    background-color: #fafafa;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.center-content {
+    flex: 1; 
+    padding: 15px;
+    display: flex;
+    flex-direction: column; 
+    overflow: hidden; 
+    background-color: #fff;
+}
+
+/* === 日志区域 === */
+.log-section {
+    flex: 1; 
+    display: flex;
+    flex-direction: column; 
+    overflow: hidden; 
+}
+
+.log-header-controls {
+    display: flex;
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 8px; 
+    flex-shrink: 0;
+}
+
+.log-header-controls h2 { font-size: 1rem; margin: 0; }
+
+.log-buttons-group { display: flex; gap: 5px; }
+
+.log-area {
+    flex: 1; 
+    border: 1px solid #ccc;
+    background-color: #222;
+    color: #0f0;
+    padding: 10px;
+    overflow-y: auto; /* 只有这里可以滚动 */
+    font-family: monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-radius: 4px;
+}
+
+/* === 底部命令栏 (PC默认样式) === */
+.bottom-command-panel {
+    padding: 10px 15px;
+    border-top: 1px solid #ddd;
+    background-color: #f8f9fa;
+    flex-shrink: 0;
+}
+
+.command-section {
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+}
+
+.command-section h3 {
+    margin: 0; 
+    font-size: 0.9rem;
+    white-space: nowrap; 
+}
+
+.input-wrapper {
+    position: relative;
+    flex-grow: 1; 
+}
+
+/* 历史记录 */
+.history-list {
+    position: absolute;
+    bottom: 100%; 
+    left: 0;
+    right: 0;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-bottom: none; 
+    border-radius: 4px 4px 0 0;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2px 0;
+    max-height: 150px;
+    overflow-y: auto;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 2000; 
+}
+
+.history-list li {
+    padding: 10px; 
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+}
+
+.history-delete-btn { color: #999; padding: 0 10px; }
+
+/* === 通用控件 === */
+.section h2 {
+    font-size: 1rem;
+    margin: 0 0 10px 0;
+    color: #555;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+button, input[type="text"], select { 
+    padding: 0 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px; 
+    height: 36px; 
+}
+
+input[type="text"], select { width: 100%; }
+
+button {
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    border: none;
+}
+
+button:disabled { background-color: #e0e0e0; color: #999; }
+
+.small-button { height: 28px; font-size: 12px; }
+
+#deviceList {
+    list-style: none;
+    padding: 0;
+    border: 1px solid #eee;
+    height: 100px; 
+    overflow-y: auto;
+    margin-top: 5px;
+    background: #fff;
+}
+
+#deviceList li { padding: 8px; border-bottom: 1px solid #eee; font-size: 0.85em; }
+
+.info-text { font-size: 0.85em; margin-top: 5px; min-height: 1.2em; }
+.command-response { color: #ffd700; font-weight: bold; }
+
+/* =========================================
+   === 移动端 强力适配 (Mobile Fix) ===
+   ========================================= */
+@media (max-width: 768px) {
+    /* 1. 改变布局方向 */
+    .content-area {
+        flex-direction: column;
+        /* 关键：给底部留出空间，防止内容被 fixed 的 footer 遮挡 */
+        /* 60px 是 footer 的大致高度 */
+        padding-bottom: 60px; 
+    }
+
+    /* 2. 侧边栏在顶部 */
+    .side-panel {
+        width: 100%;
+        height: auto;
+        max-height: 220px; /* 限制高度 */
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+        flex-shrink: 0;
+    }
+
+    /* 3. 日志区域 */
+    .center-content {
+        height: auto;
+        flex: 1; /* 自动填充剩余空间 */
+        padding: 10px;
+    }
+
+    /* 4. 底部命令栏：使用绝对固定定位 (Nuclear Solution) */
+    .bottom-command-panel {
+        position: fixed; /* 钉死在屏幕底部 */
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        z-index: 1000; /* 保证在最上层 */
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1); /* 加个阴影区分 */
+        padding: 8px 10px;
+        /* 适配 iPhone 底部横条 */
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+        background-color: #fff; /* 必须有背景色，否则透明 */
+    }
+
+    /* 5. 增大触控尺寸 */
+    button, select, input[type="text"] {
+        height: 44px;
+        font-size: 16px;
+    }
+    
+    .small-button { height: 32px; }
+
+    /* 隐藏标题节省空间 */
+    .command-section h3 { display: none; }
+    
+    /* 调整设备列表高度 */
+    #deviceList { height: 80px; }
+}
