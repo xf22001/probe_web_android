@@ -54,19 +54,25 @@ jobs:
     # gomobile 工具需要 Android NDK
     - name: Setup Android SDK & NDK
       run: |
-        # 设置 ANDROID_HOME 环境变量，通常在 GitHub Actions runner 上已预设，但此处明确设置以确保
-        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-        # 将 Android SDK 命令行工具添加到 PATH，以便 sdkmanager 命令可用
+        # 确保 ANDROID_HOME 在当前 shell 会话中可用
+        export ANDROID_HOME=/usr/local/lib/android/sdk
+        # 将 ANDROID_HOME 设置为环境变量，供后续步骤使用
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+
+        # 将 Android SDK 命令行工具添加到 PATH，以便 sdkmanager 命令在当前 shell 会话中可用
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        # 将此 PATH 修改添加到环境变量，供后续步骤使用
         echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
         # 安装指定版本的 NDK
         yes | sdkmanager "ndk;25.2.9519653"
 
-        # 设置 ANDROID_NDK_HOME 环境变量供 gomobile 使用
-        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-      env:
-        # 为此步骤设置 ANDROID_HOME，如果它之前没有全局设置的话
-        ANDROID_HOME: /usr/local/lib/android/sdk
+        # 设置 ANDROID_NDK_HOME 环境变量供 gomobile 使用，并在当前 shell 会话中可用
+        export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+      # 这里的 env: ANDROID_HOME 已经通过 run 内部的 export 和 echo 替代，可以移除
+      # env:
+      #   ANDROID_HOME: /usr/local/lib/android/sdk
 
     # 步骤 5: 安装 gomobile 工具
     - name: Install gomobile tools
