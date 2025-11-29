@@ -20,13 +20,46 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // 从环境变量中获取签名信息。这些变量将由 GitHub Actions 工作流设置。
+            val storeFileEnv = System.getenv("SIGNING_KEYSTORE_FILE")
+            val storePasswordEnv = System.getenv("SIGNING_KEYSTORE_PASSWORD")
+            val keyAliasEnv = System.getenv("SIGNING_KEY_ALIAS")
+            val keyPasswordEnv = System.getenv("SIGNING_KEY_PASSWORD")
+
+            // 检查所有必要的签名环境变量是否都已设置。
+            // 如果它们都存在，则表示我们处于 CI/CD 环境，使用通过 GitHub Secrets 提供的真实发布密钥库。
+            if (storeFileEnv != null && storePasswordEnv != null && keyAliasEnv != null && keyPasswordEnv != null) {
+                storeFile = file(storeFileEnv)
+                storePassword = storePasswordEnv
+                keyAlias = keyAliasEnv
+                keyPassword = keyPasswordEnv
+                println("Applying release signing config from GitHub Secrets (CI/CD).")
+            } else {
+                // 如果任何一个环境变量缺失（例如在本地开发时），则回退到使用 Android 默认的调试密钥库。
+                // 这允许您在本地成功构建 'release' 版本而无需提供发布密钥库。
+                println("Local build: Release signing secrets not found. Falling back to debug keystore for 'release' buildType.")
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android" // debug.keystore 的默认密码
+                keyAlias = "androiddebugkey" // debug.keystore 的默认别名
+                keyPassword = "android" // debug.keystore 的默认别名密码
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            // debug 构建类型默认使用 Android SDK 提供的调试密钥库，通常无需额外配置。
+            // 它会自动使用 ~/.android/debug.keystore 进行签名。
         }
     }
     compileOptions {
