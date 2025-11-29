@@ -40,7 +40,7 @@ jobs:
 
       - name: Decode Keystore and Set Signing Environment Variables
         # 仅当 ANDROID_SIGNING_COMBINED_SECRET 存在时才执行此步骤
-        # if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
+        # #if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
         run: |
           # 解析合并的秘密字符串
           SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
