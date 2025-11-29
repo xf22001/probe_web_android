@@ -1,29 +1,81 @@
 # Workflow 名称
-name: Validate Android Signing Secret
+name: Test Android Signing Secret Validation
 
-# 触发器配置：手动触发
+# 触发器配置：手动触发，可以快速运行
 on:
   workflow_dispatch:
-    # 不需输入参数，因为只验证一个秘密
+    inputs:
+      test_case:
+        description: '选择测试案例：1=秘密已配置, 2=秘密为空, 3=秘密格式错误 (少分隔符), 4=秘密格式错误 (多分隔符), 5=某个部分为空'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1' # 模拟秘密已正确配置
+          - '2' # 模拟秘密为空
+          - '3' # 模拟秘密格式错误 (少分隔符)
+          - '4' # 模拟秘密格式错误 (多分隔符)
+          - '5' # 模拟某个部分为空
 
 jobs:
-  validate-android-signing-secret:
-    name: Validate ANDROID_SIGNING_COMBINED_SECRET
+  validate-secret-test:
+    name: Run Signing Secret Validation Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository # 即使只是验证秘密，检出代码也是一个好的开始步骤
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate ANDROID_SIGNING_COMBINED_SECRET Format
-        # 仅当 ANDROID_SIGNING_COMBINED_SECRET 存在且不为空时才执行此步骤
-        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
+      - name: Prepare Test Secret Value
+        id: prepare_secret
         run: |
-          echo "正在验证 ANDROID_SIGNING_COMBINED_SECRET 秘密..."
-          SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
+          case "${{ github.event.inputs.test_case }}" in
+            1)
+              echo "::notice::测试案例 1: 模拟秘密已正确配置。"
+              # 这是一个有效的 Base64 字符串（例如 "test" 的 Base64 编码）
+              echo "TEST_SECRET=dGVzdF9rZXlzdG9yZQ==|keystore_pass|key_alias|key_pass" >> "$GITHUB_ENV"
+              ;;
+            2)
+              echo "::notice::测试案例 2: 模拟秘密为空。"
+              echo "TEST_SECRET=" >> "$GITHUB_ENV"
+              ;;
+            3)
+              echo "::notice::测试案例 3: 模拟秘密格式错误 (少分隔符)。"
+              echo "TEST_SECRET=part1|part2|part3" >> "$GITHUB_ENV" # 只有两个分隔符
+              ;;
+            4)
+              echo "::notice::测试案例 4: 模拟秘密格式错误 (多分隔符)。"
+              echo "TEST_SECRET=part1|part2|part3|part4|part5" >> "$GITHUB_ENV" # 有四个分隔符
+              ;;
+            5)
+              echo "::notice::测试案例 5: 模拟某个部分为空。"
+              echo "TEST_SECRET=dGVzdF9rZXlzdG9yZQ==||key_alias|key_pass" >> "$GITHUB_ENV" # keystore_password 为空
+              ;;
+            *)
+              echo "::error::未知测试案例。"
+              exit 1
+              ;;
+          esac
+
+      - name: Validate ANDROID_SIGNING_COMBINED_SECRET logic
+        # 我们这里不直接使用 secrets.ANDROID_SIGNING_COMBINED_SECRET
+        # 而是使用上一步模拟的 TEST_SECRET 变量，
+        # 或者您可以直接在这里使用 secrets.ANDROID_SIGNING_COMBINED_SECRET
+        # 但为了测试的目的，使用 TEST_SECRET 更灵活。
+        run: |
+          # 实际运行时，这里会是 SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
+          # 但在测试中，我们使用上一步准备好的 TEST_SECRET
+          SIGNING_INFO="${{ env.TEST_SECRET }}" # 或者直接使用 secrets.ANDROID_SIGNING_COMBINED_SECRET 进行真实测试
+
+          # 检查秘密是否为空。
+          if [ -z "$SIGNING_INFO" ]; then
+            echo "::notice::ANDROID_SIGNING_COMBINED_SECRET (或 TEST_SECRET) 未设置或为空。"
+            echo "验证流程将在此处停止，因为没有秘密可供解析。"
+            exit 0 # 成功退出，因为这种情况可能是预期且被处理的。
+          fi
+
+          echo "正在验证秘密格式..."
 
           # --- 验证：检查秘密字符串的格式 ---
-          # 秘密字符串预期包含四个部分，由三个 '|' 分隔。
-          # 此处计算 '|' 的数量，如果不是 3 个，则表示格式不正确。
           DELIMITER_COUNT=$(echo "$SIGNING_INFO" | grep -o "|" | wc -l)
           echo "检测到分隔符数量: $DELIMITER_COUNT"
 
@@ -31,7 +83,7 @@ jobs:
             echo "::error::ANDROID_SIGNING_COMBINED_SECRET 格式不正确。"
             echo "预期格式为: <KEYSTORE_BASE64>|<KEYSTORE_PASSWORD>|<KEY_ALIAS>|<KEY_PASSWORD>"
             echo "检测到分隔符数量: $DELIMITER_COUNT, 预期数量: 3"
-            exit 1
+            exit 1 # 格式错误，终止当前步骤并使作业失败
           fi
           echo "秘密字符串分隔符数量正确 (3个'|')。"
 
@@ -49,11 +101,4 @@ jobs:
 
           echo "所有签名秘密部分均已成功解析且不为空。"
           echo "ANDROID_SIGNING_COMBINED_SECRET 格式验证成功！"
-        shell: bash # 明确指定 bash shell
-
-      - name: Handle Missing Secret
-        # 仅当 ANDROID_SIGNING_COMBINED_SECRET 未设置或为空时才执行此步骤
-        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET == '' }}
-        run: |
-          echo "::warning::ANDROID_SIGNING_COMBINED_SECRET 秘密未设置或为空。"
-          echo "如果需要签名功能，请在仓库设置中配置此秘密。"
+        shell: bash
