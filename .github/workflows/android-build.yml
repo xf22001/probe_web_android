@@ -110,9 +110,9 @@ jobs:
 
       # ---- STEP 11: Decode keystore (if provided) ----
       - name: Decode keystore & export env
-        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
+        if: ${{ github.secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
         run: |
-          SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
+          SIGNING_INFO="${{ github.secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
           KEYSTORE_BASE64=$(echo "$SIGNING_INFO" | cut -d'|' -f1)
           KEYSTORE_PASSWORD=$(echo "$SIGNING_INFO" | cut -d'|' -f2)
           KEY_ALIAS=$(echo "$SIGNING_INFO" | cut -d'|' -f3)
