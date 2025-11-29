@@ -123,8 +123,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Decode Keystore and Set Signing Environment Variables
-        # 仅当 ANDROID_SIGNING_COMBINED_SECRET 存在时才执行此步骤
-        if: github.secrets.ANDROID_SIGNING_COMBINED_SECRET != ''
+        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
         run: |
           # 解析合并的秘密字符串
           SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
@@ -149,7 +148,7 @@ jobs:
           echo "SIGNING_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
           echo "SIGNING_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
           echo "SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
-        shell: bash # 明确指定 bash shell，以便正确处理管道和环境变量
+        shell: bash
 
       # ----------------------------------------------------
 
@@ -168,21 +167,13 @@ jobs:
       # 步骤 13: 运行 Gradle 构建，生成 release APK
       # 仅当签名相关的环境变量已经设置时才尝试构建 release
       - name: Build release APK with Gradle
-        if: |
-          github.env.SIGNING_KEYSTORE_FILE != '' &&
-          github.env.SIGNING_KEYSTORE_PASSWORD != '' &&
-          github.env.SIGNING_KEY_ALIAS != '' &&
-          github.env.SIGNING_KEY_PASSWORD != ''
+        if: ${{ env.SIGNING_KEYSTORE_FILE != '' }}
         run: ./gradlew assembleRelease --${{ github.event.inputs.log_level }}
 
       # 步骤 14: 上传构建产物 (Release APK)
       # 仅在成功签名构建后上传
       - name: Upload release APK
-        if: |
-          github.env.SIGNING_KEYSTORE_FILE != '' &&
-          github.env.SIGNING_KEYSTORE_PASSWORD != '' &&
-          github.env.SIGNING_KEY_ALIAS != '' &&
-          github.env.SIGNING_KEY_PASSWORD != ''
+        if: ${{ env.SIGNING_KEYSTORE_FILE != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
