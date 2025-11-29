@@ -1,182 +1,150 @@
-# Workflow 名称
 name: Manual Android CI Build with Go AAR
 
-# 触发器配置：改为手动触发
 on:
   workflow_dispatch:
-    # (可选) 为手动触发添加输入参数
-    # 你可以在 Actions 页面运行时填写这些参数
     inputs:
       log_level:
         description: 'Gradle log level'
         required: true
-        default: 'info' # 默认日志级别
+        default: 'info'
         type: choice
         options:
           - info
           - debug
 
 jobs:
-  # Job ID，可以自定义
   build-android-app:
-    # Job 名称，会显示在 GitHub UI 中
     name: Build Android Application with Go AAR
-
-    # 运行此 Job 的虚拟机环境
     runs-on: ubuntu-latest
 
-    # Job 的执行步骤
     steps:
-      # 步骤 1: 检出代码
-      # 使用 actions/checkout@v4 版本
+      # ---- STEP 1: Check out repository ----
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 步骤 2: 设置 Java 环境
-      # 使用 actions/setup-java@v4 版本
-      # 'temurin' (前身为 AdoptOpenJDK) 是一个高质量、社区支持的 OpenJDK 发行版
+      # ---- STEP 2: Set up Java ----
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17' # 推荐使用与当前 Android Gradle Plugin 匹配的 LTS 版本，如 17
+          java-version: '17'
           distribution: 'temurin'
-          cache: gradle # 自动缓存 Gradle 依赖
+          cache: gradle
 
-      # --- Go AAR 编译相关步骤 ---
-
-      # 步骤 3: 设置 Go 环境
+      # ---- STEP 3: Set up Go environment ----
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      # 步骤 4: 设置 Android SDK 和 NDK
-      # gomobile 工具需要 Android NDK
-      - name: Setup Android SDK & NDK
+      # ---- STEP 4: Setup Android SDK + cmdline-tools + NDK ----
+      - name: Install Android SDK / cmdline-tools / NDK
         run: |
-          # 确保 ANDROID_HOME 在当前 shell 会话中可用
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          # 将 ANDROID_HOME 设置为环境变量，供后续步骤使用
+          export ANDROID_HOME=/usr/local/lib/android
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          
-          # 将 Android SDK 命令行工具添加到 PATH，以便 sdkmanager 命令在当前 shell 会话中可用
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-          # 将此 PATH 修改添加到环境变量，供后续步骤使用
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          
-          # 安装指定版本的 NDK
-          yes | sdkmanager "ndk;25.2.9519653"
-          
-          # 设置 ANDROID_NDK_HOME 环境变量供 gomobile 使用，并在当前 shell 会话中可用
-          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
 
-      # 步骤 5: 安装 gomobile 工具
+          # Install required cmdline-tools
+          sudo mkdir -p $ANDROID_HOME/cmdline-tools
+          sudo mv $ANDROID_HOME/cmdline-tools* $ANDROID_HOME/cmdline-tools/latest
+
+          # Accept licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
+          # Install required packages
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2" \
+            "ndk;25.2.9519653"
+
+          # Export NDK path
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      # ---- STEP 5: Install gomobile ----
       - name: Install gomobile tools
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
           go install golang.org/x/mobile/cmd/gobind@latest
-          # 将 gomobile 可执行文件路径添加到 PATH
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      # 步骤 6: 初始化 gomobile 环境
+      # ---- STEP 6: gomobile init ----
       - name: Initialize gomobile
         run: gomobile init
         env:
-          # 确保 gomobile init 能够找到 NDK
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
-      # 步骤 7: 编译 Go 项目并生成 AAR 文件
+      # ---- STEP 7: Build Go AAR ----
       - name: Build Go AAR
-        working-directory: ./lib # 切换到 Go 模块所在的目录
+        working-directory: ./lib
         run: |
-          # 如果 go.mod 不存在，则初始化，但根据您的项目结构，它应该已经存在
           if [ ! -f go.mod ]; then
             go mod init com.xiaofei.probetool.lib
           fi
-          # 下载 gomobile bind 所需的依赖
+
           go get golang.org/x/mobile/bind
-          # 使用 gomobile 编译 Go 代码并生成 Android AAR
-          gomobile bind -target=android -androidapi 24 -javapkg=com.xiaofei.probetool.lib -o main.aar .
+
+          gomobile bind -target=android \
+            -androidapi 24 \
+            -javapkg=com.xiaofei.probetool.lib \
+            -o main.aar .
         env:
-          # 确保 gomobile bind 能够找到 NDK
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
-      # 步骤 8: 拷贝生成的 AAR 到 Android 应用的 libs 目录
-      - name: Copy AAR to Android app libs
+      # ---- STEP 8: Copy AAR to Android libs ----
+      - name: Copy AAR into app/libs
         run: |
           mkdir -p ./app/libs
           cp ./lib/main.aar ./app/libs/main.aar
 
-      # 步骤 9: 上传生成的 main.aar 作为 artifact
+      # ---- STEP 9: Upload AAR artifact ----
       - name: Upload Go AAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: main-aar
+          name: go-aar
           path: ./lib/main.aar
           retention-days: 7
 
-      # --- Android APK 编译相关步骤 ---
-
-      # 步骤 10: 授予 gradlew 执行权限
-      - name: Grant execute permission for gradlew
+      # ---- STEP 10: Make gradlew executable ----
+      - name: Grant execute permission
         run: chmod +x ./gradlew
 
-      - name: Decode Keystore and Set Signing Environment Variables
-        # 仅当 ANDROID_SIGNING_COMBINED_SECRET 存在时才执行此步骤
+      # ---- STEP 11: Decode keystore (if provided) ----
+      - name: Decode keystore & export env
         if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
         run: |
-          # 解析合并的秘密字符串
           SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
           KEYSTORE_BASE64=$(echo "$SIGNING_INFO" | cut -d'|' -f1)
           KEYSTORE_PASSWORD=$(echo "$SIGNING_INFO" | cut -d'|' -f2)
           KEY_ALIAS=$(echo "$SIGNING_INFO" | cut -d'|' -f3)
           KEY_PASSWORD=$(echo "$SIGNING_INFO" | cut -d'|' -f4)
-          
-          # 检查是否成功解析所有部分
-          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "Error: Failed to parse ANDROID_SIGNING_COMBINED_SECRET. One or more parts are empty."
-            exit 1
-          fi
-          
-          # 将 Base64 编码的密钥库解码并保存到 app/ 目录下
-          # 请确保这里的 `test.jks` 与您在 `app/build.gradle.kts` 中配置的文件名匹配
-          echo "$KEYSTORE_BASE64" | base64 --decode > app/test.jks
-          echo "Decoded keystore file to app/test.jks"
-          
-          # 设置环境变量供 Gradle 使用
-          echo "SIGNING_KEYSTORE_FILE=$(pwd)/app/test.jks" >> $GITHUB_ENV
+
+          echo "$KEYSTORE_BASE64" | base64 --decode > app/release.jks
+
+          echo "SIGNING_KEYSTORE_FILE=$(pwd)/app/release.jks" >> $GITHUB_ENV
           echo "SIGNING_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
           echo "SIGNING_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
           echo "SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
-        shell: bash
 
-      # ----------------------------------------------------
+      # ---- STEP 12: Build Debug APK ----
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --${{ inputs.log_level }}
 
-      # 步骤 11: 运行 Gradle 构建，生成 debug APK
-      - name: Build debug APK with Gradle
-        run: ./gradlew assembleDebug --${{ github.event.inputs.log_level }}
-
-      # 步骤 12: 上传构建产物 (Debug APK)
-      - name: Upload debug APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: '**/build/outputs/apk/debug/*.apk'
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
 
-      # 步骤 13: 运行 Gradle 构建，生成 release APK
-      # 仅当签名相关的环境变量已经设置时才尝试构建 release
-      - name: Build release APK with Gradle
+      # ---- STEP 13: Build Release APK (if keystore exists) ----
+      - name: Build Release APK
         if: ${{ env.SIGNING_KEYSTORE_FILE != '' }}
-        run: ./gradlew assembleRelease --${{ github.event.inputs.log_level }}
+        run: ./gradlew assembleRelease --${{ inputs.log_level }}
 
-      # 步骤 14: 上传构建产物 (Release APK)
-      # 仅在成功签名构建后上传
-      - name: Upload release APK
+      - name: Upload Release APK
         if: ${{ env.SIGNING_KEYSTORE_FILE != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: '**/build/outputs/apk/release/*.apk'
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 7
