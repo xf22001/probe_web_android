@@ -34,7 +34,7 @@ jobs:
 
       # --- Android APK 编译相关步骤 ---
 
-      # 步骤 10: 授予 gradlew 执行权限
+      # 步骤 1: 授予 gradlew 执行权限
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
