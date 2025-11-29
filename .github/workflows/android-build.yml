@@ -124,7 +124,7 @@ jobs:
 
       - name: Decode Keystore and Set Signing Environment Variables
         # 仅当 ANDROID_SIGNING_COMBINED_SECRET 存在时才执行此步骤
-        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}
+        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
         run: |
           # 解析合并的秘密字符串
           SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
@@ -171,7 +171,7 @@ jobs:
       # 步骤 14: 上传构建产物 (Release APK)
       # 仅在成功签名构建后上传
       - name: Upload release APK
-        if: ${{ env.SIGNING_KEYSTORE_FILE }}
+        if: ${{ env.SIGNING_KEYSTORE_FILE != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
