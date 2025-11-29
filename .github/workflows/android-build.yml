@@ -124,10 +124,10 @@ jobs:
 
       - name: Decode Keystore and Set Signing Environment Variables
         # 仅当 ANDROID_SIGNING_COMBINED_SECRET 存在时才执行此步骤
-        if: ${{ github.secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
+        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET != '' }}
         run: |
           # 解析合并的秘密字符串
-          SIGNING_INFO="${{ github.secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
+          SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
           KEYSTORE_BASE64=$(echo "$SIGNING_INFO" | cut -d'|' -f1)
           KEYSTORE_PASSWORD=$(echo "$SIGNING_INFO" | cut -d'|' -f2)
           KEY_ALIAS=$(echo "$SIGNING_INFO" | cut -d'|' -f3)
