@@ -1,32 +1,67 @@
-name: Android CI
+# Workflow 名称
+name: Manual Android CI Build
 
+# 触发器配置：改为手动触发
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
+    # (可选) 为手动触发添加输入参数
+    # 你可以在 Actions 页面运行时填写这些参数
+    inputs:
+      log_level:
+        description: 'Gradle log level'
+        required: true
+        default: 'info' # 默认日志级别
+        type: choice
+        options:
+        - info
+        - debug
 
 jobs:
-  build:
+  # Job ID，可以自定义
+  build-android-app:
+    # Job 名称，会显示在 GitHub UI 中
+    name: Build Android Application
+
+    # 运行此 Job 的虚拟机环境
     runs-on: ubuntu-latest
 
+    # Job 的执行步骤
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 11
-      uses: actions/setup-java@v3
+    # 步骤 1: 检出代码
+    # 使用 actions/checkout@v4 版本
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 步骤 2: 设置 Java 环境
+    # 使用 actions/setup-java@v4 版本
+    # 'temurin' (前身为 AdoptOpenJDK) 是一个高质量、社区支持的 OpenJDK 发行版
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17' # 推荐使用与当前 Android Gradle Plugin 匹配的 LTS 版本，如 17
         distribution: 'temurin'
-        cache: gradle
+        cache: gradle # 自动缓存 Gradle 依赖
 
+    # 步骤 3: 授予 gradlew 执行权限
+    # 这是必要的，因为 git 不会保留文件的执行权限位
     - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      run: chmod +x ./gradlew
 
-    - name: Build debug APK
-      run: ./gradlew assembleDebug
+    # 步骤 4: 运行 Gradle 构建
+    # 使用 --info 或 --debug 参数可以输出更详细的构建日志，便于排查问题
+    # 这里我们使用了手动触发时输入的 log_level
+    - name: Build debug APK with Gradle
+      run: ./gradlew assembleDebug --${{ github.event.inputs.log_level }}
 
+    # 步骤 5: 上传构建产物 (APK)
+    # 使用 actions/upload-artifact@v4 版本
+    # 这样你就可以在 workflow 运行结果页面下载 APK 文件
     - name: Upload debug APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
+        # 上传产物的名称
         name: app-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        # 要上传的文件的路径，使用通配符 **/*.apk 确保能找到 APK
+        path: '**/build/outputs/apk/debug/*.apk'
+        # (可选) 产物保留天数
+        retention-days: 7
