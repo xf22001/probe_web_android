@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.xiaofei.probetool.lib.probetool.Probetool
 import java.io.File
 import java.io.FileOutputStream
+import java.util.TimeZone
 
 class GoForegroundService : Service() {
 
@@ -82,9 +83,11 @@ class GoForegroundService : Service() {
                 }
             }
 
+            val currentTimeZone = TimeZone.getDefault().id // Get current timezone
+
             Thread {
                 try {
-                    Probetool.start(downloadDir!!.absolutePath, logDir.absolutePath, staticDir.absolutePath)
+                    Probetool.start(downloadDir!!.absolutePath, logDir.absolutePath, staticDir.absolutePath, currentTimeZone)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
