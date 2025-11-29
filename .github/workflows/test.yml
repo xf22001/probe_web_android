@@ -56,10 +56,9 @@ jobs:
           fi
           
           # 将 Base64 编码的密钥库解码并保存到 app/ 目录下
-          echo "$KEYSTORE_BASE64" | base64 --decode > app/release.jks
+          echo "$KEYSTORE_BASE64" | base64 --decode
 
-          echo "SIGNING_KEYSTORE_FILE=$(pwd)/app/release.jks" >> $GITHUB_ENV
-          echo "SIGNING_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
-          echo "SIGNING_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
-          echo "SIGNING_KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+          echo "$KEYSTORE_PASSWORD"
+          echo "$KEY_ALIAS"
+          echo "$KEY_PASSWORD"
         shell: bash # 明确指定 bash shell，以便正确处理管道和环境变量
