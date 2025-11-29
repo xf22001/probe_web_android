@@ -1,5 +1,5 @@
 # Workflow 名称
-name: Manual Android CI Build
+name: Manual Android CI Build with Go AAR
 
 # 触发器配置：改为手动触发
 on:
@@ -20,7 +20,7 @@ jobs:
   # Job ID，可以自定义
   build-android-app:
     # Job 名称，会显示在 GitHub UI 中
-    name: Build Android Application
+    name: Build Android Application with Go AAR
 
     # 运行此 Job 的虚拟机环境
     runs-on: ubuntu-latest
@@ -42,18 +42,98 @@ jobs:
         distribution: 'temurin'
         cache: gradle # 自动缓存 Gradle 依赖
 
-    # 步骤 3: 授予 gradlew 执行权限
+    # --- Go AAR 编译相关步骤 ---
+
+    # 步骤 3: 设置 Go 环境
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    # 步骤 4: 设置 Android SDK 和 NDK
+    # gomobile 工具需要 Android NDK
+    - name: Setup Android SDK & NDK
+      run: |
+        # 设置 ANDROID_HOME 环境变量，通常在 GitHub Actions runner 上已预设，但此处明确设置以确保
+        echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        # 将 Android SDK 命令行工具添加到 PATH，以便 sdkmanager 命令可用
+        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+
+        # 安装指定版本的 NDK
+        yes | sdkmanager "ndk;25.2.9519653"
+
+        # 设置 ANDROID_NDK_HOME 环境变量供 gomobile 使用
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+      env:
+        # 为此步骤设置 ANDROID_HOME，如果它之前没有全局设置的话
+        ANDROID_HOME: /usr/local/lib/android/sdk
+
+    # 步骤 5: 安装 gomobile 工具
+    - name: Install gomobile tools
+      run: |
+        go install golang.org/x/mobile/cmd/gomobile@latest
+        go install golang.org/x/mobile/cmd/gobind@latest
+        # 将 gomobile 可执行文件路径添加到 PATH
+        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+    # 步骤 6: 初始化 gomobile 环境
+    - name: Initialize gomobile
+      run: gomobile init
+      env:
+        # 确保 gomobile init 能够找到 NDK
+        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+
+    # 步骤 7: 编译 Go 项目并生成 AAR 文件
+    - name: Build Go AAR
+      working-directory: ./lib # 切换到 Go 模块所在的目录
+      run: |
+        # 如果 go.mod 不存在，则初始化，但根据您的项目结构，它应该已经存在
+        if [ ! -f go.mod ]; then
+          go mod init com.xiaofei.probetool.lib
+        fi
+        # 下载 gomobile bind 所需的依赖
+        go get golang.org/x/mobile/bind
+        # 使用 gomobile 编译 Go 代码并生成 Android AAR
+        # -target=android: 指定目标平台为 Android
+        # -androidapi 24: 指定目标 Android API 级别
+        # -javapkg=com.xiaofei.probetool.lib: 指定生成的 Java 包名
+        # -o main.aar: 指定输出文件名为 main.aar
+        # .: 表示编译当前目录下的 Go 模块
+        gomobile bind -target=android -androidapi 24 -javapkg=com.xiaofei.probetool.lib -o main.aar .
+      env:
+        # 确保 gomobile bind 能够找到 NDK
+        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+
+    # 步骤 8: 拷贝生成的 AAR 到 Android 应用的 libs 目录
+    - name: Copy AAR to Android app libs
+      run: |
+        # 确保目标目录存在
+        mkdir -p ./app/libs
+        # 将 Go 编译生成的 main.aar 复制到 Android 项目的 libs 目录
+        cp ./lib/main.aar ./app/libs/main.aar
+
+    # 新增步骤: 上传生成的 main.aar 作为 artifact
+    - name: Upload Go AAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: main-aar
+        path: ./lib/main.aar # AAR 文件在 Go 模块目录中生成
+        retention-days: 7
+
+    # --- Android APK 编译相关步骤 ---
+
+    # 步骤 9: 授予 gradlew 执行权限
     # 这是必要的，因为 git 不会保留文件的执行权限位
     - name: Grant execute permission for gradlew
       run: chmod +x ./gradlew
 
-    # 步骤 4: 运行 Gradle 构建
+    # 步骤 10: 运行 Gradle 构建，生成 debug APK
     # 使用 --info 或 --debug 参数可以输出更详细的构建日志，便于排查问题
     # 这里我们使用了手动触发时输入的 log_level
     - name: Build debug APK with Gradle
       run: ./gradlew assembleDebug --${{ github.event.inputs.log_level }}
 
-    # 步骤 5: 上传构建产物 (APK)
+    # 步骤 11: 上传构建产物 (APK)
     # 使用 actions/upload-artifact@v4 版本
     # 这样你就可以在 workflow 运行结果页面下载 APK 文件
     - name: Upload debug APK
