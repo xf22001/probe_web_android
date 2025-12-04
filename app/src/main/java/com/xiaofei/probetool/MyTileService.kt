@@ -38,19 +38,14 @@ class MyTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val intent = Intent(this, GoForegroundService::class.java)
+        ServiceToggle.dispatch(this)
+        // Optimistic UI update
         val tile = qsTile ?: return
-
-        if (GoForegroundService.isRunning) {
-            stopService(intent)
+        val isRunning = tile.state == Tile.STATE_ACTIVE
+        if (isRunning) {
             tile.state = Tile.STATE_INACTIVE
             tile.label = "Start Service"
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
             tile.state = Tile.STATE_ACTIVE
             tile.label = "Stop Service"
         }

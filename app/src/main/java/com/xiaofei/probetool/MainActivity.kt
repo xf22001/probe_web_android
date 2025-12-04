@@ -142,16 +142,7 @@ fun ControlScreen() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Button(onClick = {
-            val serviceIntent = Intent(context, GoForegroundService::class.java)
-            if (isServiceRunning) {
-                context.stopService(serviceIntent)
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent)
-                } else {
-                    context.startService(serviceIntent)
-                }
-            }
+            ServiceToggle.dispatch(context)
             // 3. Optimistic update for instant UI feedback on click.
             isServiceRunning = !isServiceRunning
         }) {
