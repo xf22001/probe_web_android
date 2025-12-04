@@ -5,10 +5,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
 import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
+import android.service.quicksettings.TileService
 import androidx.core.app.NotificationCompat
 import com.xiaofei.probetool.lib.probetool.Probetool
 import java.io.File
@@ -31,6 +33,12 @@ class GoForegroundService : Service() {
         sendBroadcast(intent)
     }
 
+    private fun requestTileUpdate() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            TileService.requestListeningState(this, ComponentName(this, MyTileService::class.java))
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
@@ -40,6 +48,7 @@ class GoForegroundService : Service() {
         if (!isRunning) {
             isRunning = true
             sendStateUpdateBroadcast(true)
+            requestTileUpdate()
             // ... existing start logic ...
             createNotificationChannel()
 
@@ -102,6 +111,7 @@ class GoForegroundService : Service() {
         if (isRunning) {
             isRunning = false
             sendStateUpdateBroadcast(false)
+            requestTileUpdate()
             try {
                 Probetool.stop()
             } catch (e: Exception) {

@@ -25,27 +25,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.xiaofei.probetool.ui.theme.ProbetoolTheme
 
 class MainActivity : ComponentActivity() {
-
-    private var isServiceRunning by mutableStateOf(GoForegroundService.isRunning)
-
-    private val serviceStateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == GoForegroundService.ACTION_SERVICE_STATE_CHANGE) {
-                isServiceRunning = intent.getBooleanExtra(GoForegroundService.EXTRA_IS_RUNNING, false)
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,35 +50,55 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ControlScreen(
-                        isServiceRunning = isServiceRunning,
-                        onToggleService = { newState -> isServiceRunning = newState }
-                    )
+                    ControlScreen()
                 }
             }
         }
     }
-
-    override fun onResume() {
-        super.onResume()
-        val intentFilter = IntentFilter(GoForegroundService.ACTION_SERVICE_STATE_CHANGE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(serviceStateReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(serviceStateReceiver, intentFilter)
-        }
-        isServiceRunning = GoForegroundService.isRunning
-    }
-
-    override fun onPause() {
-        super.onPause()
-        unregisterReceiver(serviceStateReceiver)
-    }
 }
 
 @Composable
-fun ControlScreen(isServiceRunning: Boolean, onToggleService: (Boolean) -> Unit) {
+fun ControlScreen() {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isServiceRunning by remember { mutableStateOf(GoForegroundService.isRunning) }
+
+    // This effect manages all subscriptions to external state changes.
+    DisposableEffect(context, lifecycleOwner) {
+        // 1. Listen for broadcasts for real-time updates while the app is active.
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == GoForegroundService.ACTION_SERVICE_STATE_CHANGE) {
+                    val newState = intent.getBooleanExtra(GoForegroundService.EXTRA_IS_RUNNING, false)
+                    if (isServiceRunning != newState) {
+                        isServiceRunning = newState
+                    }
+                }
+            }
+        }
+        val intentFilter = IntentFilter(GoForegroundService.ACTION_SERVICE_STATE_CHANGE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, intentFilter)
+        }
+
+        // 2. Listen for RESUME events to sync state when the app returns from background.
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (isServiceRunning != GoForegroundService.isRunning) {
+                    isServiceRunning = GoForegroundService.isRunning
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        // Cleanup logic to unregister listeners when the composable is disposed.
+        onDispose {
+            context.unregisterReceiver(receiver)
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val storageManagerPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -137,7 +152,8 @@ fun ControlScreen(isServiceRunning: Boolean, onToggleService: (Boolean) -> Unit)
                     context.startService(serviceIntent)
                 }
             }
-            onToggleService(!isServiceRunning)
+            // 3. Optimistic update for instant UI feedback on click.
+            isServiceRunning = !isServiceRunning
         }) {
             Text(if (isServiceRunning) "Stop Service" else "Start Service")
         }
