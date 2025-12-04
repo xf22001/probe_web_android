@@ -13,6 +13,8 @@ import android.os.IBinder
 import android.service.quicksettings.TileService
 import androidx.core.app.NotificationCompat
 import com.xiaofei.probetool.lib.probetool.Probetool
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.io.FileOutputStream
 import java.util.TimeZone
@@ -21,16 +23,9 @@ class GoForegroundService : Service() {
 
     companion object {
         const val ACTION_STOP = "ACTION_STOP"
-        var isRunning = false
-        const val ACTION_SERVICE_STATE_CHANGE = "com.xiaofei.probetool.SERVICE_STATE_CHANGE"
-        const val EXTRA_IS_RUNNING = "IS_RUNNING"
-    }
 
-    private fun sendStateUpdateBroadcast(isRunning: Boolean) {
-        val intent = Intent(ACTION_SERVICE_STATE_CHANGE).apply {
-            putExtra(EXTRA_IS_RUNNING, isRunning)
-        }
-        sendBroadcast(intent)
+        private val _isRunning = MutableStateFlow(false)
+        val isRunning = _isRunning.asStateFlow()
     }
 
     private fun requestTileUpdate() {
@@ -45,9 +40,8 @@ class GoForegroundService : Service() {
             return START_NOT_STICKY
         }
 
-        if (!isRunning) {
-            isRunning = true
-            sendStateUpdateBroadcast(true)
+        if (!_isRunning.value) {
+            _isRunning.value = true
             requestTileUpdate()
             // ... existing start logic ...
             createNotificationChannel()
@@ -108,9 +102,8 @@ class GoForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isRunning) {
-            isRunning = false
-            sendStateUpdateBroadcast(false)
+        if (_isRunning.value) {
+            _isRunning.value = false
             requestTileUpdate()
             try {
                 Probetool.stop()
