@@ -124,7 +124,7 @@ jobs:
         run: |
           mkdir -p ./app/src/main/assets # 确保目标目录存在
           # 拷贝 static 文件夹的所有内容，包括子目录和文件
-          cp -R ./go-core-lib/static/* ./app/src/main/assets/
+          cp -a ./go-core-lib/static ./app/src/main/assets/
           echo "Copied static assets from go-core-lib to app/src/main/assets."
           echo "Contents of app/src/main/assets:"
           ls -l ./app/src/main/assets/
