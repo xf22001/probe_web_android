@@ -43,7 +43,7 @@ class GoForegroundService : Service() {
         if (!_isRunning.value) {
             _isRunning.value = true
             requestTileUpdate()
-            // ... existing start logic ...
+            
             createNotificationChannel()
 
             val notificationIntent = Intent(this, MainActivity::class.java)
@@ -86,11 +86,11 @@ class GoForegroundService : Service() {
                 }
             }
 
-            val currentTimeZone = TimeZone.getDefault().id // Get current timezone
+            val currentTimeZone = TimeZone.getDefault().id // Get current timezone ID
 
             Thread {
                 try {
-                    Probetool.start(downloadDir!!.absolutePath, logDir.absolutePath, staticDir.absolutePath, currentTimeZone)
+                    Probetool.start(logDir.absolutePath, downloadDir!!.absolutePath, staticDir.absolutePath, currentTimeZone)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
