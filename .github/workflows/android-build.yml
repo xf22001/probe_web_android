@@ -146,7 +146,7 @@ jobs:
 
       # 步骤 14: 解码 Keystore 并设置签名环境变量
       - name: Decode Keystore and Set Signing Environment Variables
-        if: secrets.ANDROID_SIGNING_COMBINED_SECRET != ''
+        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}
         working-directory: ./main-repo
         run: |
           SIGNING_INFO="${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}"
@@ -184,7 +184,7 @@ jobs:
       # 步骤 17: 运行 Gradle 构建，生成 release APK
       - name: Build release APK with Gradle
         working-directory: ./main-repo
-        if: secrets.ANDROID_SIGNING_COMBINED_SECRET != ''
+        if: ${{ secrets.ANDROID_SIGNING_COMBINED_SECRET }}
         run: ./gradlew assembleRelease --${{ inputs.log_level }}
 
       # 步骤 18: 上传构建产物 (Release APK)
