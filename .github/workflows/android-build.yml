@@ -98,8 +98,8 @@ jobs:
           if [ ! -f go.mod ]; then
             go mod init probetool 
           fi
-          go get golang.org/x/mobile/bind
           go mod tidy 
+          go get golang.org/x/mobile/bind
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
