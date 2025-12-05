@@ -80,7 +80,7 @@ jobs:
       - name: Checkout Go core library and prepare structure
         run: |
           # 检出外部 Go 核心库仓库到主仓库内的 go-core-lib 目录
-          git clone https://github.com/xf22001/probe_web.git main-repo/go-core-lib
+          git clone https://${{ secrets.PRIVATE_REPO_ACCESS_TOKEN }}@github.com/xf22001/probe_web.git main-repo/go-core-lib
           
           # 切换到 Go 核心库的根目录进行操作
           cd main-repo/go-core-lib
