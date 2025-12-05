@@ -12,7 +12,7 @@ import android.os.Environment
 import android.os.IBinder
 import android.service.quicksettings.TileService
 import androidx.core.app.NotificationCompat
-import com.xiaofei.probetool.lib.probetool.Probetool
+import com.xiaofei.probetool.server.Server
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
@@ -90,7 +90,7 @@ class GoForegroundService : Service() {
 
             Thread {
                 try {
-                    Probetool.start(logDir.absolutePath, downloadDir!!.absolutePath, staticDir.absolutePath, currentTimeZone)
+                    Server.start(logDir.absolutePath, downloadDir!!.absolutePath, staticDir.absolutePath, currentTimeZone)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -106,7 +106,7 @@ class GoForegroundService : Service() {
             _isRunning.value = false
             requestTileUpdate()
             try {
-                Probetool.stop()
+                Server.stop()
             } catch (e: Exception) {
                 e.printStackTrace()
             }

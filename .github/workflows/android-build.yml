@@ -85,18 +85,9 @@ jobs:
           # 切换到 Go 核心库的根目录进行操作
           cd main-repo/go-core-lib
           
-          # 确保 android 包目录存在，并移动 android.go 文件到该目录
-          mkdir -p android
-          if [ -f android.go ]; then
-            mv android.go android/android.go
-            echo "Moved android.go to android/android.go within go-core-lib."
-          else
-            echo "android.go not found at root of go-core-lib, assuming it's already in android/ or handled."
-          fi
-          
           echo "Contents of main-repo/go-core-lib after setup:"
           ls -F .
-          ls -F android/
+          ls -F server/
           ls -F lib/
           ls -F static/ # 确认 static 目录存在
 
@@ -116,7 +107,7 @@ jobs:
       - name: Build Go AAR
         working-directory: ./main-repo/go-core-lib # 在 Go 核心库目录下执行
         run: |
-          gomobile bind -target=android -androidapi 24 -o probetool.aar -javapkg "com.xiaofei.probetool.lib.probetool" probetool/android
+          gomobile bind -target=android -androidapi 24 -o probetool.aar -javapkg "com.xiaofei.probetool" probetool/server
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
