@@ -69,6 +69,13 @@ private fun Context.getLogDirectory(): String {
 // 辅助函数：打开日志目录
 private fun Context.openLogDirectory() {
     val logDirPath = getLogDirectory()
+    val logDir = java.io.File(logDirPath)
+
+    if (!logDir.exists()) {
+        // 如果日志目录不存在，提示用户
+        android.widget.Toast.makeText(this, "Log directory does not exist yet. Start the service first.", android.widget.Toast.LENGTH_LONG).show()
+        return
+    }
 
     val intent = Intent(Intent.ACTION_VIEW).apply {
         val uri = Uri.parse(logDirPath)
@@ -104,38 +111,42 @@ private fun Context.shareLogFiles() {
     val logDirPath = getLogDirectory()
     val logDir = java.io.File(logDirPath)
 
-    if (!logDir.exists() || logDir.listFiles()?.isEmpty() == true) {
+    if (!logDir.exists()) {
+        // 如果日志目录不存在，提示用户
+        android.widget.Toast.makeText(this, "Log directory does not exist yet. Start the service first.", android.widget.Toast.LENGTH_LONG).show()
+        return
+    }
+
+    val logFiles = logDir.listFiles()
+    if (logFiles.isNullOrEmpty()) {
         // 如果没有日志文件，提示用户
         android.widget.Toast.makeText(this, "No log files to share", android.widget.Toast.LENGTH_SHORT).show()
         return
     }
 
-    val logFiles = logDir.listFiles()
-    if (logFiles != null) {
-        val uris = logFiles.map { file ->
-            androidx.core.content.FileProvider.getUriForFile(
-                this,
-                "${packageName}.fileprovider",
-                file
-            )
-        }
+    val uris = logFiles.map { file ->
+        androidx.core.content.FileProvider.getUriForFile(
+            this,
+            "${packageName}.fileprovider",
+            file
+        )
+    }
 
-        val shareIntent = Intent().apply {
-            action = Intent.ACTION_SEND_MULTIPLE
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            type = "*/*" // 通用类型，允许分享所有类型的文件
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-        }
+    val shareIntent = Intent().apply {
+        action = Intent.ACTION_SEND_MULTIPLE
+        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        type = "*/*" // 通用类型，允许分享所有类型的文件
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+    }
 
-        val chooserIntent = Intent.createChooser(shareIntent, "Share Log Files").apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
+    val chooserIntent = Intent.createChooser(shareIntent, "Share Log Files").apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    }
 
-        try {
-            startActivity(chooserIntent)
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Unable to share log files: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-        }
+    try {
+        startActivity(chooserIntent)
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(this, "Unable to share log files: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
     }
 }
 
@@ -173,8 +184,6 @@ fun ControlScreen() {
 
     // 添加一个权限检查函数
     fun checkAndRequestLogPermissions() {
-        val permissionsToRequest = mutableListOf<String>()
-
         // 检查存储权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11+
             if (!Environment.isExternalStorageManager()) {
@@ -188,15 +197,14 @@ fun ControlScreen() {
                 showLogMenu = true
             }
         } else { // Below Android 11
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
-                != android.content.pm.PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val permissionsToCheck = mutableListOf<String>()
+            permissionsToCheck.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                permissionsToCheck.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
 
-                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                }
+            val permissionsToRequest = permissionsToCheck.filter { permission ->
+                ContextCompat.checkSelfPermission(context, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED
             }
 
             if (permissionsToRequest.isNotEmpty()) {
