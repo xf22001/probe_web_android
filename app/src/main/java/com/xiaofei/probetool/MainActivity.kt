@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,7 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.xiaofei.probetool.ui.theme.ProbetoolTheme
 
 class MainActivity : ComponentActivity() {
@@ -56,6 +60,85 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// 辅助函数：获取日志目录路径
+private fun Context.getLogDirectory(): String {
+    val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    return "${downloadDir.absolutePath}/logs"
+}
+
+// 辅助函数：打开日志目录
+private fun Context.openLogDirectory() {
+    val logDirPath = getLogDirectory()
+
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        val uri = Uri.parse(logDirPath)
+        setDataAndType(uri, "resource/folder")
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+
+    try {
+        startActivity(intent)
+    } catch (e: Exception) {
+        // 如果无法直接打开文件夹，则尝试使用文件管理器
+        val safIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                   Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                   Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+
+        try {
+            startActivity(safIntent)
+        } catch (safException: Exception) {
+            // 如果SAF也不行，就打开应用设置页面
+            val settingsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${this@openLogDirectory.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(settingsIntent)
+        }
+    }
+}
+
+// 辅助函数：分享日志文件
+private fun Context.shareLogFiles() {
+    val logDirPath = getLogDirectory()
+    val logDir = java.io.File(logDirPath)
+
+    if (!logDir.exists() || logDir.listFiles()?.isEmpty() == true) {
+        // 如果没有日志文件，提示用户
+        android.widget.Toast.makeText(this, "No log files to share", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val logFiles = logDir.listFiles()
+    if (logFiles != null) {
+        val uris = logFiles.map { file ->
+            androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                file
+            )
+        }
+
+        val shareIntent = Intent().apply {
+            action = Intent.ACTION_SEND_MULTIPLE
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            type = "*/*" // 通用类型，允许分享所有类型的文件
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        }
+
+        val chooserIntent = Intent.createChooser(shareIntent, "Share Log Files").apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+
+        try {
+            startActivity(chooserIntent)
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "Unable to share log files: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+}
+
 @Composable
 fun ControlScreen() {
     val context = LocalContext.current
@@ -64,15 +147,81 @@ fun ControlScreen() {
     // 添加一个状态来跟踪Web UI按钮的点击状态，用于实现点击效果
     var isWebButtonPressed by remember { mutableStateOf(false) }
 
+    // 添加状态来跟踪日志按钮菜单的显示
+    var showLogMenu by remember { mutableStateOf(false) }
+
+    // 添加状态来跟踪存储权限是否已授予
+    var hasStoragePermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Environment.isExternalStorageManager()
+            } else {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            }
+        )
+    }
+
     val storageManagerPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-        onResult = { /* You can check permission status again here if needed */ }
+        onResult = { updatePermissionStatus() }
     )
 
     val standardPermissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { /* Handle results */ }
+        onResult = { updatePermissionStatus() }
     )
+
+    // 添加一个权限检查函数
+    fun checkAndRequestLogPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+
+        // 检查存储权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11+
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                }
+                storageManagerPermissionLauncher.launch(intent)
+            } else {
+                // 权限已授予，可以执行日志操作
+                hasStoragePermission = true
+                showLogMenu = true
+            }
+        } else { // Below Android 11
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }
+
+            if (permissionsToRequest.isNotEmpty()) {
+                standardPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+            } else {
+                // 权限已授予，可以执行日志操作
+                hasStoragePermission = true
+                showLogMenu = true
+            }
+        }
+    }
+
+    // 更新权限状态的回调函数
+    fun updatePermissionStatus() {
+        hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+
+        // 如果权限已授予，可以继续执行日志操作
+        if (hasStoragePermission) {
+            showLogMenu = true
+        }
+    }
 
     LaunchedEffect(key1 = true) {
         val permissionsToRequest = mutableListOf<String>()
@@ -162,6 +311,49 @@ fun ControlScreen() {
                 fontSize = 16.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
             )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 日志管理按钮 - 包含打开和分享功能
+        Box { // 使用Box容器来容纳按钮和下拉菜单
+            Button(
+                onClick = { checkAndRequestLogPermissions() },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (hasStoragePermission) Color(0xFF795548) else Color.Gray, // 权限未授予时显示灰色
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .height(56.dp)
+                    .padding(horizontal = 40.dp)
+            ) {
+                Text(
+                    text = "Manage Logs",
+                    fontSize = 16.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                )
+            }
+
+            DropdownMenu(
+                expanded = showLogMenu,
+                onDismissRequest = { showLogMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Open Log Directory") },
+                    onClick = {
+                        context.openLogDirectory()
+                        showLogMenu = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Share Log Files") },
+                    onClick = {
+                        context.shareLogFiles()
+                        showLogMenu = false
+                    }
+                )
+            }
         }
     }
 }
