@@ -236,8 +236,8 @@ fun ControlScreen() {
                     )
                 } else {
                     ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF9E9E9E), // 灰色背景 - 表示服务停止
-                        contentColor = Color(0xFF4CAF50) // 绿色文字 - 表示启动操作
+                        containerColor = Color(0xFF2196F3), // 蓝色背景 - 表示服务停止
+                        contentColor = Color(0xFFFFFFFF) // 白色文字 - 表示启动操作
                     )
                 },
                 shape = RoundedCornerShape(16.dp),
