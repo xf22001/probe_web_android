@@ -68,17 +68,15 @@ private fun Context.getLogDirectory(): String {
 
 // 辅助函数：打开日志目录
 private fun Context.openLogDirectory() {
-    val logDirPath = getLogDirectory()
-    val logDir = java.io.File(logDirPath)
+    val logDir = java.io.File(getLogDirectory())
 
     if (!logDir.exists()) {
-        // 如果日志目录不存在，提示用户
         android.widget.Toast.makeText(this, "Log directory does not exist yet. Start the service first.", android.widget.Toast.LENGTH_LONG).show()
         return
     }
 
     val intent = Intent(Intent.ACTION_VIEW).apply {
-        val uri = Uri.parse(logDirPath)
+        val uri = Uri.parse(logDir.absolutePath)
         setDataAndType(uri, "resource/folder")
         flags = Intent.FLAG_ACTIVITY_NEW_TASK
     }
@@ -108,43 +106,33 @@ private fun Context.openLogDirectory() {
 
 // 辅助函数：分享日志文件
 private fun Context.shareLogFiles() {
-    val logDirPath = getLogDirectory()
-    val logDir = java.io.File(logDirPath)
+    val logDir = java.io.File(getLogDirectory())
 
     if (!logDir.exists()) {
-        // 如果日志目录不存在，提示用户
         android.widget.Toast.makeText(this, "Log directory does not exist yet. Start the service first.", android.widget.Toast.LENGTH_LONG).show()
         return
     }
 
-    val logFiles = logDir.listFiles()
-    if (logFiles.isNullOrEmpty()) {
-        // 如果没有日志文件，提示用户
+    val logFiles = logDir.listFiles()?.takeIf { it.isNotEmpty() } ?: run {
         android.widget.Toast.makeText(this, "No log files to share", android.widget.Toast.LENGTH_SHORT).show()
         return
     }
 
     val uris = logFiles.map { file ->
-        androidx.core.content.FileProvider.getUriForFile(
-            this,
-            "${packageName}.fileprovider",
-            file
-        )
+        androidx.core.content.FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
     }
 
     val shareIntent = Intent().apply {
         action = Intent.ACTION_SEND_MULTIPLE
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-        type = "*/*" // 通用类型，允许分享所有类型的文件
+        type = "*/*"
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
     }
 
-    val chooserIntent = Intent.createChooser(shareIntent, "Share Log Files").apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-    }
-
     try {
-        startActivity(chooserIntent)
+        startActivity(Intent.createChooser(shareIntent, "Share Log Files").apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        })
     } catch (e: Exception) {
         android.widget.Toast.makeText(this, "Unable to share log files: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
     }
@@ -174,62 +162,51 @@ fun ControlScreen() {
 
     val storageManagerPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
-        onResult = { updatePermissionStatus() }
+        onResult = {
+            hasStoragePermission = Environment.isExternalStorageManager()
+            if (hasStoragePermission) showLogMenu = true
+        }
     )
 
     val standardPermissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { updatePermissionStatus() }
+        onResult = { permissions ->
+            hasStoragePermission = permissions.all { it.value == true }
+            if (hasStoragePermission) showLogMenu = true
+        }
     )
 
     // 添加一个权限检查函数
     fun checkAndRequestLogPermissions() {
+        if (hasStoragePermission) {
+            showLogMenu = true
+            return
+        }
+
         // 检查存储权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11+
-            if (!Environment.isExternalStorageManager()) {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = Uri.fromParts("package", context.packageName, null)
-                }
-                storageManagerPermissionLauncher.launch(intent)
-            } else {
-                // 权限已授予，可以执行日志操作
-                hasStoragePermission = true
-                showLogMenu = true
+            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                data = Uri.fromParts("package", context.packageName, null)
             }
+            storageManagerPermissionLauncher.launch(intent)
         } else { // Below Android 11
-            val permissionsToCheck = mutableListOf<String>()
-            permissionsToCheck.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                permissionsToCheck.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
-
-            val permissionsToRequest = permissionsToCheck.filter { permission ->
-                ContextCompat.checkSelfPermission(context, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            val permissionsToRequest = listOf(Manifest.permission.READ_EXTERNAL_STORAGE).let { perms ->
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    perms + Manifest.permission.WRITE_EXTERNAL_STORAGE
+                } else perms
+            }.filter {
+                ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
             }
 
             if (permissionsToRequest.isNotEmpty()) {
                 standardPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
             } else {
-                // 权限已授予，可以执行日志操作
                 hasStoragePermission = true
                 showLogMenu = true
             }
         }
     }
 
-    // 更新权限状态的回调函数
-    fun updatePermissionStatus() {
-        hasStoragePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
-
-        // 如果权限已授予，可以继续执行日志操作
-        if (hasStoragePermission) {
-            showLogMenu = true
-        }
-    }
 
     LaunchedEffect(key1 = true) {
         val permissionsToRequest = mutableListOf<String>()
@@ -241,6 +218,7 @@ fun ControlScreen() {
                 }
                 storageManagerPermissionLauncher.launch(intent)
             }
+            // 对于Android 11+，我们不添加传统存储权限，因为使用了MANAGE_EXTERNAL_STORAGE
         } else { // Below Android 11
             permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
