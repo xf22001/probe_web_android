@@ -216,6 +216,7 @@ fun ProbeToolApp() {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = false,
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(16.dp))
@@ -309,11 +310,15 @@ fun ProbeToolApp() {
                 TopAppBar(
                     title = {},
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        IconButton(
+                            onClick = { scope.launch { drawerState.open() } },
+                            modifier = Modifier.size(40.dp)
+                        ) {
                             Icon(
                                 Icons.Default.Menu,
                                 contentDescription = "Menu",
-                                tint = Color.White
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     },
