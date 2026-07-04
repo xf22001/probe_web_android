@@ -8,9 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.webkit.WebResourceRequest
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -330,22 +328,36 @@ fun ProbeToolApp() {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.allowFileAccess = false
-                        webViewClient = object : WebViewClient() {
-                            override fun onReceivedError(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                                error: android.webkit.WebResourceError?
-                            ) {
-                                view?.loadUrl("about:blank")
-                            }
-                        }
                     }
                 },
                 update = { webView ->
-                    if (isServiceRunning) {
-                        webView.loadUrl("http://127.0.0.1:8000")
-                    } else {
-                        webView.loadUrl("about:blank")
+                    val targetUrl = if (isServiceRunning) "http://127.0.0.1:8000" else "stopped"
+                    val currentTag = webView.getTag(android.R.id.hint) as? String
+
+                    // Only reload when the target actually changes
+                    if (currentTag != targetUrl) {
+                        webView.setTag(android.R.id.hint, targetUrl)
+                        if (isServiceRunning) {
+                            // Delay to give the Go server time to start
+                            webView.postDelayed({
+                                webView.loadUrl("http://127.0.0.1:8000")
+                            }, 1500)
+                        } else {
+                            val stoppedHtml = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                                <body style="background:#1a1a2e;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,sans-serif;margin:0">
+                                <div style="text-align:center">
+                                    <div style="font-size:48px;margin-bottom:16px">&#x25A0;</div>
+                                    <h2 style="color:#eee;margin:0">Service Stopped</h2>
+                                    <p style="color:#888;margin-top:8px">&#x2630; Open menu to start</p>
+                                </div>
+                                </body>
+                                </html>
+                            """.trimIndent()
+                            webView.loadDataWithBaseURL(null, stoppedHtml, "text/html", "UTF-8", null)
+                        }
                     }
                 },
                 modifier = Modifier
