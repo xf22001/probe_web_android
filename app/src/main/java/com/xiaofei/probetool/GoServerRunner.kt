@@ -32,17 +32,17 @@ object GoServerRunner {
         val staticDir = File(context.filesDir, "static")
         if (!staticDir.exists()) {
             staticDir.mkdirs()
-            try {
-                context.assets.list("static")?.forEach { fileName ->
-                    context.assets.open("static/$fileName").use { input ->
-                        FileOutputStream(File(staticDir, fileName)).use { output ->
-                            input.copyTo(output)
-                        }
+        }
+        try {
+            context.assets.list("static")?.forEach { fileName ->
+                context.assets.open("static/$fileName").use { input ->
+                    FileOutputStream(File(staticDir, fileName)).use { output ->
+                        input.copyTo(output)
                     }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         val timezone = TimeZone.getDefault().id
