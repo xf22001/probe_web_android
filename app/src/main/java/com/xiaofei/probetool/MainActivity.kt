@@ -290,6 +290,7 @@ fun ProbeToolApp() {
                         Icon(Icons.Default.Share, contentDescription = null)
                     },
                     label = { Text("Export Logs") },
+                    selected = false,
                     modifier = Modifier.padding(horizontal = 12.dp),
                     onClick = {
                         scope.launch { drawerState.close() }
