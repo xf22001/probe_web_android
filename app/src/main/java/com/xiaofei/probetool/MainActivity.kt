@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,13 +29,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Circle
-import androidx.compose.material.icons.rounded.IosShare
-import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -233,11 +234,13 @@ fun ProbeToolApp() {
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.Circle,
-                                contentDescription = null,
-                                tint = if (isServiceRunning) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                                modifier = Modifier.size(12.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(
+                                        if (isServiceRunning) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                        CircleShape
+                                    )
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
@@ -264,7 +267,7 @@ fun ProbeToolApp() {
                             )
                         ) {
                             Icon(
-                                if (isServiceRunning) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                                if (isServiceRunning) Icons.Default.Close else Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -284,7 +287,7 @@ fun ProbeToolApp() {
                 // — Export Logs —
                 NavigationDrawerItem(
                     icon = {
-                        Icon(Icons.Rounded.IosShare, contentDescription = null)
+                        Icon(Icons.Default.Share, contentDescription = null)
                     },
                     label = { Text("Export Logs") },
                     modifier = Modifier.padding(horizontal = 12.dp),
@@ -308,7 +311,7 @@ fun ProbeToolApp() {
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(
-                                Icons.Rounded.Menu,
+                                Icons.Default.Menu,
                                 contentDescription = "Menu",
                                 tint = Color.White
                             )
