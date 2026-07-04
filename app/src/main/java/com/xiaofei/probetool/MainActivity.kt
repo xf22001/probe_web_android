@@ -105,6 +105,7 @@ fun ProbeToolApp() {
     var showLogSheet by remember { mutableStateOf(false) }
     var logFiles by remember { mutableStateOf<Array<File>>(emptyArray()) }
     val bottomSheetState = rememberModalBottomSheetState()
+    var lastUrl by remember { mutableStateOf("") }
 
     // Storage permission
     var hasStoragePermission by remember {
@@ -332,11 +333,10 @@ fun ProbeToolApp() {
                 },
                 update = { webView ->
                     val targetUrl = if (isServiceRunning) "http://127.0.0.1:8000" else "stopped"
-                    val currentTag = webView.getTag(android.R.id.hint) as? String
 
                     // Only reload when the target actually changes
-                    if (currentTag != targetUrl) {
-                        webView.setTag(android.R.id.hint, targetUrl)
+                    if (lastUrl != targetUrl) {
+                        lastUrl = targetUrl
                         if (isServiceRunning) {
                             // Delay to give the Go server time to start
                             webView.postDelayed({
