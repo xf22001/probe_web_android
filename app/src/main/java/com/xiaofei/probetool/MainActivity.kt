@@ -97,7 +97,7 @@ private fun Context.getLogDirectory(): String {
 @Composable
 fun ProbeToolApp() {
     val context = LocalContext.current
-    val isServiceRunning by GoForegroundService.isRunning.collectAsState()
+    val isServiceRunning by GoServerRunner.isRunning.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -257,7 +257,7 @@ fun ProbeToolApp() {
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = {
-                                ServiceToggle.dispatch(context)
+                                if (isServiceRunning) GoServerRunner.stop() else GoServerRunner.start(context)
                                 scope.launch { drawerState.close() }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -329,6 +329,9 @@ fun ProbeToolApp() {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.allowFileAccess = false
+                        settings.useWideViewPort = true
+                        settings.loadWithOverviewMode = true
+                        settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     }
                 },
                 update = { webView ->
