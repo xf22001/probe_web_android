@@ -214,7 +214,7 @@ fun ProbeToolApp() {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = false,
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(16.dp))
@@ -364,19 +364,6 @@ fun ProbeToolApp() {
                 )
             }
 
-            // Clickable overlay to close drawer when tapping outside
-            if (drawerState.isOpen) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) {
-                            scope.launch { drawerState.close() }
-                        }
-                )
-            }
         }
     }
 
