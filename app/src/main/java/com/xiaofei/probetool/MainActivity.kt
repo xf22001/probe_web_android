@@ -19,14 +19,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +45,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -68,7 +69,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.xiaofei.probetool.ui.theme.ProbetoolTheme
@@ -95,7 +95,10 @@ private fun Context.getLogDirectory(): String {
 @Composable
 fun ProbeToolApp() {
     val context = LocalContext.current
-    val isServiceRunning by GoServerRunner.isRunning.collectAsState()
+    val serviceState by GoServerRunner.state.collectAsState()
+    val isServiceRunning = serviceState.isRunning
+    val isServiceStarting = serviceState.isStarting
+    val serviceHasError = serviceState.lastError.isNotBlank()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -219,14 +222,37 @@ fun ProbeToolApp() {
             ModalDrawerSheet {
                 Spacer(Modifier.height(16.dp))
 
+                val statusColor = when {
+                    isServiceRunning -> Color(0xFF4CAF50)
+                    isServiceStarting -> Color(0xFF1976D2)
+                    serviceHasError -> Color(0xFFE53935)
+                    else -> Color(0xFFFF9800)
+                }
+                val statusText = when {
+                    isServiceRunning -> "Service Running"
+                    isServiceStarting -> "Service Starting"
+                    serviceHasError -> "Service Error"
+                    else -> "Service Stopped"
+                }
+                val detailText = when {
+                    isServiceRunning -> "http://127.0.0.1:8000"
+                    isServiceStarting -> "Starting backend"
+                    serviceHasError -> serviceState.lastError
+                    else -> "Tap to start"
+                }
+
                 // — Service status card —
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isServiceRunning)
-                            Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+                        containerColor = when {
+                            isServiceRunning -> Color(0xFFE8F5E9)
+                            isServiceStarting -> Color(0xFFE3F2FD)
+                            serviceHasError -> Color(0xFFFFEBEE)
+                            else -> Color(0xFFFFF3E0)
+                        }
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -236,20 +262,20 @@ fun ProbeToolApp() {
                                 modifier = Modifier
                                     .size(12.dp)
                                     .background(
-                                        if (isServiceRunning) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                        statusColor,
                                         CircleShape
                                     )
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                if (isServiceRunning) "Service Running" else "Service Stopped",
+                                statusText,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = if (isServiceRunning) Color(0xFF2E7D32) else Color(0xFFE65100)
+                                color = statusColor
                             )
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            if (isServiceRunning) "http://127.0.0.1:8000" else "Tap to start",
+                            detailText,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -262,16 +288,24 @@ fun ProbeToolApp() {
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isServiceRunning) Color(0xFFE53935) else Color(0xFF4CAF50)
-                            )
+                            ),
+                            enabled = !isServiceStarting
                         ) {
                             Icon(
-                                if (isServiceRunning) Icons.Default.Close else Icons.Default.PlayArrow,
+                                when {
+                                    isServiceRunning -> Icons.Default.Close
+                                    else -> Icons.Default.PlayArrow
+                                },
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                if (isServiceRunning) "STOP SERVICE" else "START SERVICE",
+                                when {
+                                    isServiceStarting -> "STARTING"
+                                    isServiceRunning -> "STOP SERVICE"
+                                    else -> "START SERVICE"
+                                },
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -303,8 +337,32 @@ fun ProbeToolApp() {
             }
         }
     ) {
-        Box(Modifier.fillMaxSize()) {
-            // Full-screen WebView
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .background(MaterialTheme.colorScheme.surface),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable { scope.launch { drawerState.open() } },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
@@ -345,25 +403,10 @@ fun ProbeToolApp() {
                         }
                     }
                 },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Floating hamburger button
-            IconButton(
-                onClick = { scope.launch { drawerState.open() } },
                 modifier = Modifier
-                    .padding(top = 8.dp, start = 8.dp)
-                    .size(36.dp)
-                    .background(Color(0x99000000), CircleShape)
-            ) {
-                Icon(
-                    Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
         }
     }
 
